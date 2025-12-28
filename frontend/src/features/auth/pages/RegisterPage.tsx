@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,11 +20,21 @@ const registerSchema = z.object({
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
+const otpSchema = z.object({
+  otpCode: z.string().min(5).max(6, 'OTP must be 5-6 digits'),
+});
+
+type OTPFormData = z.infer<typeof otpSchema>;
+
 export const RegisterPage = () => {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [showOTP, setShowOTP] = useState(false);
+  const [email, setEmail] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const {
     register,
@@ -34,17 +44,28 @@ export const RegisterPage = () => {
     resolver: zodResolver(registerSchema),
   });
 
+  const otpForm = useForm<OTPFormData>({
+    resolver: zodResolver(otpSchema),
+  });
+
+  // Timer for resend OTP
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/register', data);
-      const { user, token } = response.data.data;
-      setAuth(user, token);
+      await api.post('/auth/register', data);
+      setEmail(data.email);
+      setShowOTP(true);
       toast({
-        title: 'Account created!',
-        description: `Welcome to FinVision, ${user.firstName}!`,
+        title: 'Registration successful!',
+        description: 'Please check your email for the verification code.',
       });
-      navigate('/dashboard');
     } catch (error: any) {
       toast({
         title: 'Registration failed',
@@ -55,6 +76,110 @@ export const RegisterPage = () => {
       setIsLoading(false);
     }
   };
+
+  const onVerifyOTP = async (data: OTPFormData) => {
+    setIsVerifying(true);
+    try {
+      const response = await api.post('/auth/verify-email', {
+        email,
+        otpCode: data.otpCode,
+      });
+      const { user, token } = response.data.data;
+      setAuth(user, token);
+      toast({
+        title: 'Email verified!',
+        description: `Welcome to FinVision, ${user.firstName}!`,
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Verification failed',
+        description: error.response?.data?.message || 'Invalid verification code',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    try {
+      await api.post('/auth/resend-otp', { email });
+      setResendTimer(60); // 60 seconds cooldown
+      toast({
+        title: 'OTP sent',
+        description: 'A new verification code has been sent to your email.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Failed to resend',
+        description: error.response?.data?.message || 'Failed to send verification code',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (showOTP) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Verify Your Email</CardTitle>
+          <CardDescription>
+            We've sent a verification code to {email}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={otpForm.handleSubmit(onVerifyOTP)} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="otpCode" className="text-sm font-medium">
+                Verification Code
+              </label>
+              <Input
+                id="otpCode"
+                placeholder="Enter 6-digit code"
+                className="text-center text-lg tracking-widest"
+                maxLength={6}
+                {...otpForm.register('otpCode')}
+              />
+              {otpForm.formState.errors.otpCode && (
+                <p className="text-sm text-destructive text-center">
+                  {otpForm.formState.errors.otpCode.message}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground text-center">
+                For testing: Use code <code className="bg-muted px-1 rounded">00000</code>
+              </p>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isVerifying}>
+              {isVerifying ? 'Verifying...' : 'Verify Email'}
+            </Button>
+
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleResendOTP}
+                disabled={resendTimer > 0}
+                className="text-sm"
+              >
+                {resendTimer > 0
+                  ? `Resend code in ${resendTimer}s`
+                  : 'Resend verification code'
+                }
+              </Button>
+            </div>
+
+            <p className="text-center text-sm text-muted-foreground">
+              <Link to="/auth/register" className="text-primary hover:underline">
+                Use different email
+              </Link>
+            </p>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

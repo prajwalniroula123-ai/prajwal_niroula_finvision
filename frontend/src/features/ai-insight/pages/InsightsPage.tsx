@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -64,7 +64,7 @@ export const InsightsPage = () => {
   const handleGenerateInsight = async () => {
     setGenerating(true);
     try {
-      const response = await api.get('/ai-insights/generate');
+      await api.get('/ai-insights/generate');
       toast({
         title: 'Success',
         description: 'New insight generated successfully',

@@ -11,9 +11,10 @@ import {
   CreditCard,
   MessageSquare,
   LogOut,
+  Shield,
 } from 'lucide-react';
 
-const navigation = [
+const userNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Wallets', href: '/wallets', icon: Wallet },
   { name: 'Transactions', href: '/transactions', icon: Receipt },
@@ -24,10 +25,17 @@ const navigation = [
   { name: 'Chat', href: '/chat', icon: MessageSquare },
 ];
 
+const adminNavigation = [
+  { name: 'Admin Dashboard', href: '/admin/dashboard', icon: Shield },
+  { name: 'User Dashboard', href: '/dashboard', icon: LayoutDashboard },
+];
+
 export const DashboardLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isAdmin } = useAuthStore();
+
+  const navigation = isAdmin() ? adminNavigation : userNavigation;
 
   const handleLogout = () => {
     logout();

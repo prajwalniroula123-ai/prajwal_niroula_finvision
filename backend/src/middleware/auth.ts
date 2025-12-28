@@ -7,7 +7,7 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
-    isAdmin: boolean;
+    role: 'USER' | 'ADMIN';
   };
 }
 
@@ -26,7 +26,7 @@ export const authenticate = (
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET!
-    ) as { userId: string; email: string; isAdmin: boolean };
+    ) as { userId: string; email: string; role: 'USER' | 'ADMIN' };
 
     req.userId = decoded.userId;
     req.user = decoded;
@@ -42,7 +42,7 @@ export const requireAdmin = (
   res: Response,
   next: NextFunction
 ) => {
-  if (!req.user?.isAdmin) {
+  if (!req.user || req.user.role !== 'ADMIN') {
     throw new AppError('Admin access required', 403);
   }
   next();

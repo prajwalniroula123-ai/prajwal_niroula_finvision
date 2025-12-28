@@ -19,7 +19,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
+  const { setAuth, isAdmin } = useAuthStore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -41,7 +41,9 @@ export const LoginPage = () => {
         title: 'Welcome back!',
         description: `Logged in as ${user.firstName} ${user.lastName}`,
       });
-      navigate('/dashboard');
+      // Redirect based on user role
+      const redirectPath = isAdmin() ? '/admin/dashboard' : '/dashboard';
+      navigate(redirectPath, { replace: true });
     } catch (error: any) {
       toast({
         title: 'Login failed',

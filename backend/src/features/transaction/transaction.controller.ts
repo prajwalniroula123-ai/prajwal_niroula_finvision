@@ -4,7 +4,9 @@ import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 const createTransactionSchema = z.object({
   walletId: z.string(),
@@ -73,10 +75,13 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
 };
 
 export const getTransactions = async (req: AuthRequest, res: Response) => {
-  const { type, category, startDate, endDate, limit = '50', offset = '0' } = req.query;
+  const { type, category, startDate, endDate, limit = '50', offset = '0', userId } = req.query;
+
+  // Allow admin to view any user's transactions
+  const targetUserId = req.user?.role === 'ADMIN' && userId ? userId as string : req.userId!;
 
   const where: any = {
-    userId: req.userId!,
+    userId: targetUserId,
   };
 
   if (type) where.type = type;
@@ -108,11 +113,14 @@ export const getTransactions = async (req: AuthRequest, res: Response) => {
 export const getTransactionById = async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
 
+  // Allow admin to view any transaction
+  const where: any = { id };
+  if (req.user?.role !== 'ADMIN') {
+    where.userId = req.userId!;
+  }
+
   const transaction = await prisma.transaction.findFirst({
-    where: {
-      id,
-      userId: req.userId!,
-    },
+    where,
     include: {
       wallet: true,
       emotion: true,
@@ -212,10 +220,13 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
 };
 
 export const getTransactionStats = async (req: AuthRequest, res: Response) => {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, userId } = req.query;
+
+  // Allow admin to view any user's stats
+  const targetUserId = req.user?.role === 'ADMIN' && userId ? userId as string : req.userId!;
 
   const where: any = {
-    userId: req.userId!,
+    userId: targetUserId,
   };
 
   if (startDate || endDate) {

@@ -3,7 +3,9 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 export const getRewards = async (req: AuthRequest, res: Response) => {
   const rewards = await prisma.reward.findMany({

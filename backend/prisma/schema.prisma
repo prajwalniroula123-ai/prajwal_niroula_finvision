@@ -6,41 +6,50 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
+}
+
+// User Role Enum
+enum UserRole {
+  USER
+  ADMIN
 }
 
 // User Model
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String
-  firstName     String
-  lastName      String
-  phoneNumber   String?
-  avatar        String?
-  isAdmin       Boolean   @default(false)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(cuid()) @map("_id")
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String?
+  avatar            String?
+  role              UserRole  @default(USER)
+  isEmailVerified   Boolean   @default(false)
+  otpCode           String?
+  otpExpiresAt      DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  wallets       Wallet[]
-  transactions  Transaction[]
-  emotions      Emotion[]
-  rewards       Reward[]
-  achievements  Achievement[]
-  aiInsights    AIInsight[]
-  chatMessages  ChatMessage[]
+  wallets           Wallet[]
+  transactions      Transaction[]
+  emotions          Emotion[]
+  rewards           Reward[]
+  achievements      Achievement[]
+  aiInsights        AIInsight[]
+  chatMessages      ChatMessage[]
 
   @@map("users")
 }
 
 // Wallet Model
 model Wallet {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
-  balance       Decimal   @default(0) @db.Decimal(10, 2)
+  balance       Float     @default(0)
   currency      String    @default("NPR")
   walletType    String    // "esewa", "khalti", "internal"
   walletNumber  String?   // For external wallets
@@ -57,10 +66,10 @@ model Wallet {
 
 // Transaction Model
 model Transaction {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
   walletId      String
-  amount        Decimal   @db.Decimal(10, 2)
+  amount        Float
   type          String    // "income", "expense", "transfer"
   category      String?   // AI-categorized
   description    String?
@@ -81,7 +90,7 @@ model Transaction {
 
 // Emotion Model
 model Emotion {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
   transactionId String?   @unique
   emotionType   String    // "happy", "sad", "anxious", "excited", "neutral", "stressed"
@@ -99,7 +108,7 @@ model Emotion {
 
 // Reward Model
 model Reward {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
   rewardType    String    // "badge", "points", "streak"
   rewardName    String
@@ -115,7 +124,7 @@ model Reward {
 
 // Achievement Model
 model Achievement {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
   achievementType String  // "savings_milestone", "streak", "category_master", etc.
   title         String
@@ -131,7 +140,7 @@ model Achievement {
 
 // AI Insight Model
 model AIInsight {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
   transactionId String?   @unique
   insightType   String    // "prediction", "recommendation", "warning", "pattern"
@@ -150,7 +159,7 @@ model AIInsight {
 
 // Chat Message Model (for AI chatbot)
 model ChatMessage {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   userId        String
   message       String
   response      String?
@@ -165,7 +174,7 @@ model ChatMessage {
 
 // Payment Gateway Configuration
 model PaymentGateway {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   gatewayName   String    @unique // "esewa", "khalti"
   apiKey        String?
   secretKey     String?

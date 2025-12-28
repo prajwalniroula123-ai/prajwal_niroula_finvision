@@ -5,8 +5,12 @@ import jwt from 'jsonwebtoken';
 import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 import { z } from 'zod';
+import { emailService } from '../../services/email.service';
+import { otpService } from '../../services/otp.service';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -34,14 +38,19 @@ export const register = async (req: Request, res: Response) => {
       throw new AppError('User already exists', 400);
     }
 
+    // Generate OTP
+    const otp = otpService.createOTP();
+
     // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // Create user
+    // Create user with OTP
     const user = await prisma.user.create({
       data: {
         ...data,
         password: hashedPassword,
+        otpCode: otp.code,
+        otpExpiresAt: otp.expiresAt,
       },
       select: {
         id: true,
@@ -49,21 +58,22 @@ export const register = async (req: Request, res: Response) => {
         firstName: true,
         lastName: true,
         phoneNumber: true,
-        avatar: true,
         createdAt: true,
       },
     });
 
-    // Generate token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, isAdmin: false },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    // Send OTP email
+    try {
+      await emailService.sendOTPEmail(data.email, otp.code);
+    } catch (emailError) {
+      console.error('Failed to send OTP email:', emailError);
+      // Don't fail registration if email fails, but log it
+    }
 
     res.status(201).json({
       success: true,
-      data: { user, token },
+      message: 'Registration successful. Please check your email for verification code.',
+      data: { user },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -95,7 +105,7 @@ export const login = async (req: Request, res: Response) => {
 
     // Generate token
     const token = jwt.sign(
-      { userId: user.id, email: user.email, isAdmin: user.isAdmin },
+      { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET!,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -110,7 +120,8 @@ export const login = async (req: Request, res: Response) => {
           lastName: user.lastName,
           phoneNumber: user.phoneNumber,
           avatar: user.avatar,
-          isAdmin: user.isAdmin,
+          role: user.role,
+          isEmailVerified: user.isEmailVerified,
         },
         token,
       },
@@ -133,7 +144,8 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
       lastName: true,
       phoneNumber: true,
       avatar: true,
-      isAdmin: true,
+      role: true,
+      isEmailVerified: true,
       createdAt: true,
     },
   });
@@ -169,7 +181,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
         lastName: true,
         phoneNumber: true,
         avatar: true,
-        isAdmin: true,
+        role: true,
         updatedAt: true,
       },
     });
@@ -177,6 +189,128 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     res.json({
       success: true,
       data: user,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new AppError(error.errors[0].message, 400);
+    }
+    throw error;
+  }
+};
+
+const verifyEmailSchema = z.object({
+  email: z.string().email(),
+  otpCode: z.string().min(5).max(6),
+});
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { email, otpCode } = verifyEmailSchema.parse(req.body);
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (user.isEmailVerified) {
+      throw new AppError('Email already verified', 400);
+    }
+
+    // Validate OTP
+    const isValidOTP = otpService.validateOTP(user.otpCode, user.otpExpiresAt, otpCode);
+
+    if (!isValidOTP) {
+      throw new AppError('Invalid or expired verification code', 400);
+    }
+
+    // Update user as verified and clear OTP
+    const updatedUser = await prisma.user.update({
+      where: { email },
+      data: {
+        isEmailVerified: true,
+        otpCode: null,
+        otpExpiresAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        avatar: true,
+        role: true,
+        isEmailVerified: true,
+      },
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
+      process.env.JWT_SECRET!,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully',
+      data: { user: updatedUser, token },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new AppError(error.errors[0].message, 400);
+    }
+    throw error;
+  }
+};
+
+const resendOtpSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resendOTP = async (req: Request, res: Response) => {
+  try {
+    const { email } = resendOtpSchema.parse(req.body);
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (user.isEmailVerified) {
+      throw new AppError('Email already verified', 400);
+    }
+
+    // Generate new OTP
+    const otp = otpService.createOTP();
+
+    // Update user with new OTP
+    await prisma.user.update({
+      where: { email },
+      data: {
+        otpCode: otp.code,
+        otpExpiresAt: otp.expiresAt,
+      },
+    });
+
+    // Send OTP email
+    try {
+      await emailService.sendOTPEmail(email, otp.code);
+    } catch (emailError) {
+      console.error('Failed to send OTP email:', emailError);
+      throw new AppError('Failed to send verification email', 500);
+    }
+
+    res.json({
+      success: true,
+      message: 'Verification code sent to your email',
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

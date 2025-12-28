@@ -5,7 +5,9 @@ import { AuthRequest } from '../../middleware/auth';
 import { z } from 'zod';
 // import OpenAI from 'openai'; // Uncomment when OpenAI API key is available
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 // const openai = new OpenAI({
 //   apiKey: process.env.OPENAI_API_KEY,

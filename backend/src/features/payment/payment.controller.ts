@@ -5,7 +5,9 @@ import { AuthRequest } from '../../middleware/auth';
 import { z } from 'zod';
 import axios from 'axios';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 const initiatePaymentSchema = z.object({
   amount: z.number().positive(),

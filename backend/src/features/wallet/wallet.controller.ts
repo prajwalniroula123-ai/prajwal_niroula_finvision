@@ -4,7 +4,9 @@ import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 const createWalletSchema = z.object({
   walletType: z.enum(['esewa', 'khalti', 'internal']),

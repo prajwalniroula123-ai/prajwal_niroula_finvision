@@ -7,6 +7,7 @@ import { DashboardLayout } from '@/features/dashboard/components/DashboardLayout
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
+import { AdminDashboardPage } from '@/features/admin/pages/AdminDashboardPage';
 import { WalletsPage } from '@/features/wallet/pages/WalletsPage';
 import { TransactionsPage } from '@/features/transaction/pages/TransactionsPage';
 import { EmotionsPage } from '@/features/emotion/pages/EmotionsPage';
@@ -16,7 +17,7 @@ import { PaymentsPage } from '@/features/payment/pages/PaymentsPage';
 import { ChatPage } from '@/features/chat/pages/ChatPage';
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isAdmin } = useAuthStore();
 
   return (
     <BrowserRouter>
@@ -24,7 +25,13 @@ function App() {
         {/* Public Routes */}
         <Route
           path="/auth"
-          element={!isAuthenticated ? <AuthLayout /> : <Navigate to="/dashboard" />}
+          element={
+            isAuthenticated ? (
+              <Navigate to={isAdmin() ? "/admin/dashboard" : "/dashboard"} replace />
+            ) : (
+              <AuthLayout />
+            )
+          }
         >
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
@@ -39,7 +46,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to={isAdmin() ? "/admin/dashboard" : "/dashboard"} replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="wallets" element={<WalletsPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
@@ -50,8 +57,20 @@ function App() {
           <Route path="chat" element={<ChatPage />} />
         </Route>
 
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute adminOnly>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="dashboard" element={<AdminDashboardPage />} />
+        </Route>
+
         {/* Catch all */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to={isAdmin() ? "/admin/dashboard" : "/dashboard"} replace />} />
       </Routes>
       <Toaster />
     </BrowserRouter>
